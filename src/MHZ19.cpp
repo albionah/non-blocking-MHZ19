@@ -1,7 +1,7 @@
 /*
   MHZ19.cpp - MH-Z19 CO2 sensor library for ESP8266 or Arduino
   version 1.0
-  
+
   License MIT
 */
 
@@ -28,6 +28,7 @@ MHZ19::MHZ19(int pwm){
 
 MHZ19::~MHZ19()
 {
+	delete _serial;
 }
 
 void MHZ19::begin(int rx, int tx)
@@ -109,18 +110,45 @@ void MHZ19::writeCommand(uint8_t cmd[], uint8_t *response)
 	}
 }
 
-//private
+void MHZ19::ensureSerial()
+{
+	if (_serial == nullptr)
+	{
+		_serial = new SoftwareSerial(_rx_pin, _tx_pin);
+		_serial->begin(9600);
+	}
+}
 
-measurement_t MHZ19::getMeasurement()
+void MHZ19::sendCommand(uint8_t cmd[])
+{
+	ensureSerial();
+	_serial->write(cmd, REQUEST_CNT);
+	_serial->write(mhz19_checksum(cmd));
+	_serial->flush();
+}
+
+void MHZ19::requestMeasurement()
+{
+	sendCommand(getppm);
+}
+
+boolean MHZ19::isResponseAvailable()
+{
+	ensureSerial();
+	return _serial->available() >= MHZ19::RESPONSE_CNT;
+}
+
+measurement_t MHZ19::readResponse()
 {
 	uint8_t buf[MHZ19::RESPONSE_CNT];
-	for (int i = 0; i < MHZ19::RESPONSE_CNT; i++)
-	{
-		buf[i] = 0x0;
-	}
+	_serial->readBytes(buf, MHZ19::RESPONSE_CNT);
+	return parseResponse(buf);
+}
 
-	writeCommand(getppm, buf);
-	// parse
+//private
+
+measurement_t MHZ19::parseResponse(uint8_t buf[])
+{
 	measurement_t measurement = {};
 	if (buf[0] == 0xff && buf[1] == 0x86 && mhz19_checksum(buf) == buf[MHZ19::RESPONSE_CNT - 1])
 	{
@@ -133,6 +161,18 @@ measurement_t MHZ19::getMeasurement()
 		measurement.co2_ppm = measurement.temperature = measurement.state = -1;
 	}
 	return measurement;
+}
+
+measurement_t MHZ19::getMeasurement()
+{
+	uint8_t buf[MHZ19::RESPONSE_CNT];
+	for (int i = 0; i < MHZ19::RESPONSE_CNT; i++)
+	{
+		buf[i] = 0x0;
+	}
+
+	writeCommand(getppm, buf);
+	return parseResponse(buf);
 }
 
 int MHZ19::getPpmPwm()

@@ -1,7 +1,7 @@
 /*
   MHZ19.h - MH-Z19 CO2 sensor library for ESP-WROOM-02/32(ESP8266/ESP32) or Arduino
   version 1.0
-  
+
   License MIT
 */
 
@@ -56,14 +56,21 @@ class MHZ19
 
 	boolean isWarming();
 
+	void requestMeasurement();
+	boolean isResponseAvailable();
+	measurement_t readResponse();
+
   protected:
 	void writeCommand(uint8_t com[]);
-	void writeCommand(uint8_t com[], uint8_t response[]);
+	void writeCommand(uint8_t cmd[], uint8_t *response);
+	void sendCommand(uint8_t cmd[]);
 
   private:
 	uint8_t mhz19_checksum(uint8_t com[]);
 	measurement_t getSerialData();
 	void setPwmData(MHZ19_PWM_DATA type);
+	measurement_t parseResponse(uint8_t buf[]);
+	void ensureSerial();
 
 	static const int REQUEST_CNT = 8;
 	static const int RESPONSE_CNT = 9;
@@ -74,7 +81,7 @@ class MHZ19
 	uint8_t spancalib[REQUEST_CNT] = {0xff, 0x01, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00};
 	uint8_t autocalib_on[REQUEST_CNT] = {0xff, 0x01, 0x79, 0xA0, 0x00, 0x00, 0x00, 0x00};
 	uint8_t autocalib_off[REQUEST_CNT] = {0xff, 0x01, 0x79, 0x00, 0x00, 0x00, 0x00, 0x00};
-	
+
 	// Serial Pins
 	int _rx_pin = -1;
 	int _tx_pin = -1;
@@ -84,6 +91,9 @@ class MHZ19
 
 	// Pwm Data Flag
 	uint8_t PWM_DATA_SELECT = MHZ19_PWM_DATA::CALC_2000_PPM;
+
+	// Persistent serial for non-blocking mode
+	SoftwareSerial* _serial = nullptr;
 };
 
 #endif
